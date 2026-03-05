@@ -5,10 +5,6 @@ trigger:
 pool:
   vmImage: 'ubuntu-latest'
 
-variables:
-  # This fixes the "Corrupted Channel" by preventing Surefire from miscommunicating with the JVM
-  MAVEN_OPTS: '-Dfile.encoding=UTF-8'
-
 steps:
 - task: JavaToolInstaller@0
   inputs:
@@ -18,17 +14,18 @@ steps:
   displayName: '1. Setup Java 17'
 
 - script: |
-    echo "##[command] Installing Maven Dependencies..."
-    mvn install -DskipTests
+    echo "##[section] 📂 Step 2.1: Clean and Install"
+    mvn clean install -DskipTests
 
-    echo "##[command] Installing Playwright Browsers & Linux Deps..."
-    # This installs the actual browser binaries AND the Linux system libraries
+    echo "##[section] 📂 Step 2.2: Force Browser & Linux Library Install"
+    # This is the most important line for Ubuntu agents
     mvn exec:java -e -Dexec.mainClass="com.microsoft.playwright.CLI" -Dexec.args="install --with-deps"
 
-    echo "##[command] Running Tests in Headless Mode..."
-    # 'forkCount=0' often fixes the "Corrupted Channel" error in CI environments
+    echo "##[section] 📂 Step 2.3: Run Tests with CI stability flags"
+    # -Dsurefire.forkCount=0 prevents the "Corrupted Channel" error
+    # -Dheadless=true ensures it runs in the background
     mvn test -Dheadless=true -Dsurefire.forkCount=0
-  displayName: '2. Build and Run Playwright'
+  displayName: '2. Build and Execute Playwright'
 
 - task: PublishTestResults@2
   inputs:
