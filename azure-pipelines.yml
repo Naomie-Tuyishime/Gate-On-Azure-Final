@@ -1,23 +1,41 @@
 trigger:
-  - dev
+- dev
 
 pool:
-  vmImage: ubuntu-latest
+  vmImage: 'ubuntu-latest'
 
 steps:
-  - task: Maven@4
-    displayName: 'Maven Build and Compile'
-    inputs:
-      mavenPomFile: 'pom.xml'
-      goals: 'clean compile'
-      publishJUnitResults: true
-      testResultsFiles: '**/surefire-reports/TEST-*.xml'
-      javaHomeOption: 'JDKVersion'
-      jdkVersionOption: '1.17'
+# 1. Set up the correct Java Version (Matching your POM)
+- task: JavaToolInstaller@0
+  inputs:
+    versionSpec: '17'
+    jdkArchitectureOption: 'x64'
+    jdkSourceOption: 'PreInstalled'
 
-  - script: |
-      mvn exec:java -e -D exec.mainClass=com.microsoft.playwright.CLI -D exec.args="install --with-deps"
-    displayName: 'Install Playwright Browsers'
+# 2. Build and Compile (without running tests yet)
+- task: Maven@4
+  displayName: 'Compile Project'
+  inputs:
+    mavenPomFile: 'pom.xml'
+    goals: 'clean compile'
+    publishJUnitResults: false
+    javaHomeOption: 'JDKVersion'
+    jdkVersionOption: '1.17'
 
-  - script: mvn test
-    displayName: 'Run Automated Tests'
+# 3. Install Playwright Browsers AND System Dependencies
+# Using 'force' and '--with-deps' ensures the Linux agent is fully ready.
+- script: |
+    mvn exec:java -e -D exec.mainClass=com.microsoft.playwright.CLI -D exec.args="install --with-deps"
+  displayName: 'Install Playwright Browsers'
+
+# 4. Run the Actual Tests
+# We add -Dheadless=true just in case your code doesn't have it.
+- task: Maven@4
+  displayName: 'Run Automated Tests'
+  inputs:
+    mavenPomFile: 'pom.xml'
+    goals: 'test'
+    publishJUnitResults: true
+    testResultsFiles: '**/surefire-reports/TEST-*.xml'
+    javaHomeOption: 'JDKVersion'
+    jdkVersionOption: '1.17'
