@@ -1,37 +1,35 @@
 trigger:
-  - dev
-  - main
+  branches:
+    include:
+      - '*'   # Run on all branches
+
+pr:
+  branches:
+    include:
+      - '*'   # Run on all PRs
 
 pool:
   vmImage: 'ubuntu-latest'
 
-steps:
-- task: JavaToolInstaller@0
-  inputs:
-    versionSpec: '17'
-    jdkArchitectureOption: 'x64'
-    jdkSourceOption: 'PreInstalled'
-  displayName: '1. Setup Java 17'
+jobs:
+  - job: BuildAndTest
+    displayName: 'Build and Test Java Project'
+    steps:
+      - checkout: self
+        displayName: 'Checkout repository'
 
-- script: |
-    echo "##[section] 📂 Step 2.1: Clean and Install"
-    mvn clean install -DskipTests
+      - task: JavaToolInstaller@0
+        inputs:
+          versionSpec: '17'
+          jdkArchitectureOption: 'x64'
+          jdkSourceOption: 'PreInstalled'
+        displayName: 'Set up JDK 17'
 
-    echo "##[section] 📂 Step 2.2: Force Browser & Linux Library Install"
-    # This is the most important line for Ubuntu agents
-    mvn exec:java -e -Dexec.mainClass="com.microsoft.playwright.CLI" -Dexec.args="install --with-deps"
+      - script: mvn clean install -DskipTests
+        displayName: 'Install dependencies'
 
-    echo "##[section] 📂 Step 2.3: Run Tests with CI stability flags"
-    # -Dsurefire.forkCount=0 prevents the "Corrupted Channel" error
-    # -Dheadless=true ensures it runs in the background
-    mvn test -Dheadless=true -Dsurefire.forkCount=0
-  displayName: '2. Build and Execute Playwright'
+      - script: mvn compile
+        displayName: 'Build project'
 
-- task: PublishTestResults@2
-  inputs:
-    testResultsFormat: 'JUnit'
-    testResultsFiles: '**/target/surefire-reports/TEST-*.xml'
-    mergeTestResults: true
-    failTaskOnFailedTests: true
-  condition: always()
-  displayName: '3. Publish Test Report'
+      - script: mvn test
+        displayName: 'Run automated tests'
