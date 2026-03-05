@@ -31,5 +31,21 @@ jobs:
   - script: mvn compile
     displayName: 'Build project'
 
-  - script: mvn test
+  # --- ADDED STEP: Install Playwright Browsers ---
+  - script: mvn exec:java -e -D exec.mainClass=com.microsoft.playwright.CLI -D exec.args="install --with-deps"
+    displayName: 'Install Playwright Browsers'
+
+  # --- UPDATED STEP: Run tests with Virtual Display ---
+  - script: |
+      export DISPLAY=:99
+      Xvfb :99 -screen 0 1024x768x24 &
+      mvn test
     displayName: 'Run automated tests'
+
+  # --- ADDED STEP: Publish results even if tests fail ---
+  - task: PublishTestResults@2
+    condition: succeededOrFailed()
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: '**/surefire-reports/TEST-*.xml'
+    displayName: 'Publish Test Results'
