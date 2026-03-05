@@ -1,35 +1,23 @@
 trigger:
-  branches:
-    include:
-      - '*'   # Run on all branches
-
-pr:
-  branches:
-    include:
-      - '*'   # Run on all PRs
+  - dev
 
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: ubuntu-latest
 
-jobs:
-  - job: BuildAndTest
-    displayName: 'Build and Test Java Project'
-    steps:
-      - checkout: self
-        displayName: 'Checkout repository'
+steps:
+  - task: Maven@4
+    displayName: 'Maven Build and Compile'
+    inputs:
+      mavenPomFile: 'pom.xml'
+      goals: 'clean compile'
+      publishJUnitResults: true
+      testResultsFiles: '**/surefire-reports/TEST-*.xml'
+      javaHomeOption: 'JDKVersion'
+      jdkVersionOption: '1.17'
 
-      - task: JavaToolInstaller@0
-        inputs:
-          versionSpec: '17'
-          jdkArchitectureOption: 'x64'
-          jdkSourceOption: 'PreInstalled'
-        displayName: 'Set up JDK 17'
+  - script: |
+      mvn exec:java -e -D exec.mainClass=com.microsoft.playwright.CLI -D exec.args="install --with-deps"
+    displayName: 'Install Playwright Browsers'
 
-      - script: mvn clean install -DskipTests
-        displayName: 'Install dependencies'
-
-      - script: mvn compile
-        displayName: 'Build project'
-
-      - script: mvn test
-        displayName: 'Run automated tests'
+  - script: mvn test
+    displayName: 'Run Automated Tests'
