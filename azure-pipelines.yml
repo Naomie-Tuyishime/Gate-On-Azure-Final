@@ -1,0 +1,32 @@
+trigger:
+  - main
+  - dev
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - task: JavaToolInstaller@0
+    inputs:
+      versionSpec: '17'
+      jdkArchitectureOption: 'x64'
+      jdkSourceOption: 'PreInstalled'
+    displayName: '1. Setup Java 17'
+
+  - script: |
+      echo "##[command] Installing Dependencies..."
+      mvn install -DskipTests
+      
+      echo "##[command] Installing Playwright Browsers..."
+      mvn exec:java -e -Dexec.mainClass="com.microsoft.playwright.CLI" -Dexec.args="install --with-deps"
+      
+      echo "##[command] Running Automation Tests..."
+      mvn test
+    displayName: '2. Build and Run Playwright'
+
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: '**/target/surefire-reports/TEST-*.xml'
+    condition: always()
+    displayName: '3. Publish Test Report'
