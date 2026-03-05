@@ -1,51 +1,50 @@
 trigger:
   branches:
     include:
-      - '*'   # Run on all branches
-
-pr:
-  branches:
-    include:
-      - '*'   # Run on all PRs
+      - '*'
 
 pool:
   vmImage: 'ubuntu-latest'
 
+variables:
+  # This tells Playwright exactly where to put the browsers
+  PLAYWRIGHT_BROWSERS_PATH: $(Pipeline.Workspace)/pw-browsers
+
 jobs:
 - job: BuildAndTest
-  displayName: 'Build and Test Java Project'
   steps:
   - checkout: self
-    displayName: 'Checkout repository'
 
   - task: JavaToolInstaller@0
     inputs:
       versionSpec: '17'
       jdkArchitectureOption: 'x64'
       jdkSourceOption: 'PreInstalled'
-    displayName: 'Set up JDK 17'
 
-  - script: mvn clean install -DskipTests
-    displayName: 'Install dependencies'
+  # 1. ESCAPE THE DOWNLOAD: Check if we already have the browsers
+  - task: Cache@2
+    displayName: 'Cache Playwright Browsers'
+    inputs:
+      key: 'playwright | "$(Agent.OS)" | pom.xml'
+      path: $(PLAYWRIGHT_BROWSERS_PATH)
+      cacheHitVar: PLAYWRIGHT_CACHE_RESTORED
 
-  - script: mvn compile
-    displayName: 'Build project'
-
-  # --- ADDED STEP: Install Playwright Browsers ---
+  # 2. ONLY INSTALL IF CACHE MISS: This step is skipped if browsers exist
   - script: mvn exec:java -e -D exec.mainClass=com.microsoft.playwright.CLI -D exec.args="install --with-deps"
+    condition: ne(variables.PLAYWRIGHT_CACHE_RESTORED, 'true')
     displayName: 'Install Playwright Browsers'
 
-  # --- UPDATED STEP: Run tests with Virtual Display ---
+  # 3. RUN TESTS: Using the cached browsers
   - script: |
       export DISPLAY=:99
       Xvfb :99 -screen 0 1024x768x24 &
       mvn test
     displayName: 'Run automated tests'
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: $(PLAYWRIGHT_BROWSERS_PATH)
 
-  # --- ADDED STEP: Publish results even if tests fail ---
   - task: PublishTestResults@2
     condition: succeededOrFailed()
     inputs:
       testResultsFormat: 'JUnit'
       testResultsFiles: '**/surefire-reports/TEST-*.xml'
-    displayName: 'Publish Test Results'
