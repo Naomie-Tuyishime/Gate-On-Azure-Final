@@ -6,11 +6,10 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  # This ensures Playwright knows where to look for browsers on the agent
-  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '0'
+  # This fixes the "Corrupted Channel" by preventing Surefire from miscommunicating with the JVM
+  MAVEN_OPTS: '-Dfile.encoding=UTF-8'
 
 steps:
-# Step 1: Install Java 17
 - task: JavaToolInstaller@0
   inputs:
     versionSpec: '17'
@@ -18,21 +17,19 @@ steps:
     jdkSourceOption: 'PreInstalled'
   displayName: '1. Setup Java 17'
 
-# Step 2: Build, Install Browsers, and Run Tests
 - script: |
-    echo "##[section] 📂 Step 2.1: Installing Maven Dependencies..."
+    echo "##[command] Installing Maven Dependencies..."
     mvn install -DskipTests
 
-    echo "##[section] 📂 Step 2.2: Installing Playwright & System Dependencies..."
-    # This command downloads the browsers AND the Linux libraries (libgbm, etc.)
+    echo "##[command] Installing Playwright Browsers & Linux Deps..."
+    # This installs the actual browser binaries AND the Linux system libraries
     mvn exec:java -e -Dexec.mainClass="com.microsoft.playwright.CLI" -Dexec.args="install --with-deps"
 
-    echo "##[section] 📂 Step 2.3: Running Automation Tests..."
-    # We use -Dheadless=true just in case your Java code doesn't force it
-    mvn test -Dheadless=true
-  displayName: '2. Build and Execute Playwright'
+    echo "##[command] Running Tests in Headless Mode..."
+    # 'forkCount=0' often fixes the "Corrupted Channel" error in CI environments
+    mvn test -Dheadless=true -Dsurefire.forkCount=0
+  displayName: '2. Build and Run Playwright'
 
-# Step 3: Publish Results to the "Tests" Tab
 - task: PublishTestResults@2
   inputs:
     testResultsFormat: 'JUnit'
